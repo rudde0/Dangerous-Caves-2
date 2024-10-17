@@ -3,7 +3,7 @@ package me.imdanix.caves.regions;
 import me.imdanix.caves.configuration.Configurable;
 import me.imdanix.caves.regions.griefprevention.GriefPreventionFlagsProtector;
 import me.imdanix.caves.regions.griefprevention.GriefPreventionProtector;
-import me.imdanix.caves.regions.lands.LandsProtector;
+//import me.imdanix.caves.regions.lands.LandsProtector;
 import me.imdanix.caves.regions.worldguard.WorldGuard7FlagsProtector;
 import me.imdanix.caves.regions.worldguard.WorldGuard7Protector;
 import me.imdanix.caves.util.Manager;
@@ -79,10 +79,10 @@ public enum Regions implements Manager<RegionProtector>, Configurable {
     }
 
     public void onEnable() {
-        if (Bukkit.getPluginManager().isPluginEnabled("Lands")) {
+        /*if (Bukkit.getPluginManager().isPluginEnabled("Lands")) {
             register(new LandsProtector(true));
             register(new LandsProtector(false));
-        }
+        }*/
 
         protectors.values().forEach(RegionProtector::onEnable);
     }

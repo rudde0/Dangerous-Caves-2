@@ -11,8 +11,14 @@ import org.bukkit.block.data.FaceAttachable;
 import org.bukkit.block.data.MultipleFacing;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
+import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.profile.PlayerProfile;
+import org.bukkit.profile.PlayerTextures;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -83,18 +89,38 @@ public final class Materials {
     }
 
     @SuppressWarnings("deprecation")
-    public static ItemStack getHeadFromValue(String value) {
-        UUID id = UUID.nameUUIDFromBytes(value.getBytes());
+    public static ItemStack getHeadFromURL(String URLTexture) {
+        /*UUID id = UUID.nameUUIDFromBytes(value.getBytes());
         // Heck yeah, magic numbers
         long less = id.getLeastSignificantBits();
         int lessA = (int) (less >> 32); int lessB = (int) less;
         long most = id.getMostSignificantBits();
-        int mostA = (int) (most >> 32); int mostB = (int) most;
-        return Bukkit.getUnsafe().modifyItemStack(
+        int mostA = (int) (most >> 32); int mostB = (int) most;*/
+
+        URLTexture = URLTexture.toLowerCase();
+        URLTexture = URLTexture.replace("http://textures.minecraft.net/texture/", "");
+        URLTexture = URLTexture.replace("https://textures.minecraft.net/texture/", "");
+
+
+        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
+        ItemMeta meta = item.getItemMeta();
+        SkullMeta skullMeta = (SkullMeta) meta;
+
+        PlayerProfile pp = Bukkit.createPlayerProfile(UUID.fromString("4fbecd49-c7d4-4c18-8410-adf7a7348728"));
+        PlayerTextures pt = pp.getTextures();
+        try {
+            pt.setSkin(new URL("http://textures.minecraft.net/texture/" + URLTexture));
+        } catch (MalformedURLException e) {e.printStackTrace();}
+        pp.setTextures(pt);
+        skullMeta.setOwnerProfile(pp);
+        meta = skullMeta;
+        item.setItemMeta(meta);
+
+        return item;
+        /*return Bukkit.getUnsafe().modifyItemStack(
                 new ItemStack(Material.PLAYER_HEAD),
-                "{SkullOwner:{Id:[I;" + lessA + "," + lessB + "," + mostA + "," + mostB + "]," +
-                        "Properties:{textures:[{Value:\"" + value + "\"}]}}}"
-        );
+                "{profile={id:[I;" + lessA + "," + lessB + "," + mostA + "," + mostB + "],properties:[{name:\"textures\",value:\"" + value + "\"}]}}"
+        );*/
     }
 
     public static boolean isCave(Material type) {

@@ -30,7 +30,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.4.1</version>
+                <version>3.6.0</version>
                 <configuration>
                     <minimizeJar>true</minimizeJar>
                     <relocations>
@@ -137,12 +137,12 @@
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
-        <dependency>
+        <!--<dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>regions-lands</artifactId>
             <version>${project.version}</version>
             <scope>compile</scope>
             <optional>true</optional>
-        </dependency>
+        </dependency>-->
     </dependencies>
 </project>

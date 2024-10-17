@@ -2,7 +2,7 @@ package me.imdanix.caves.regions.lands;
 
 import me.angeschossen.lands.api.integration.LandsIntegration;
 import me.angeschossen.lands.api.land.Area;
-import me.angeschossen.lands.api.land.enums.LandSetting;
+import me.angeschossen.lands.api.land.LandS;
 import me.imdanix.caves.regions.ActionType;
 import me.imdanix.caves.regions.RegionProtector;
 import org.bukkit.Bukkit;

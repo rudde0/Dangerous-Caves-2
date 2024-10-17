@@ -48,7 +48,7 @@ public class DeadMiner extends MobBase implements CustomMob.Ticking, Listener {
         torches = cfg.getBoolean("place-torches", true);
         redTorches = cfg.getBoolean("redstone-torches", false);
         dropChance = cfg.getDouble("drop-chance", 16.67) / 100;
-        head = Materials.getHeadFromValue(cfg.getString("head-value", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzE5MzdiY2Q1YmVlYWEzNDI0NDkxM2YyNzc1MDVlMjlkMmU2ZmIzNWYyZTIzY2E0YWZhMmI2NzY4ZTM5OGQ3MyJ9fX0="));
+        head = Materials.getHeadFromURL(cfg.getString("head-url", "31937bcd5beaaa34244913f277505e29d2e6fb35f2e23ca4afa2b6768e398d73"));
 
         items = new ArrayList<>(Materials.getSet(cfg.getStringList("drop-items")));
 
@@ -56,7 +56,7 @@ public class DeadMiner extends MobBase implements CustomMob.Ticking, Listener {
         if (cooldown <= 0) {
             cooldownEffect = null;
         } else {
-            cooldownEffect = new PotionEffect(PotionEffectType.CONFUSION, cooldown*20, 0, true, false);
+            cooldownEffect = new PotionEffect(PotionEffectType.NAUSEA, cooldown*20, 0, true, false);
         }
     }
 
@@ -88,7 +88,7 @@ public class DeadMiner extends MobBase implements CustomMob.Ticking, Listener {
 
     @Override
     public void tick(LivingEntity entity) {
-        if (!torches || entity.hasPotionEffect(PotionEffectType.CONFUSION)) return;
+        if (!torches || entity.hasPotionEffect(PotionEffectType.NAUSEA)) return;
         Block block = entity.getLocation().getBlock();
 
         if (block.getLightLevel() > 0 || (requiresTarget && ((Monster)entity).getTarget() == null) ||

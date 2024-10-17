@@ -290,7 +290,7 @@ mobs:
     health: 22
     # Get your custom head here https://minecraft-heads.com/
     # Just copy a "Value" (with =)
-    head-value: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzE5MzdiY2Q1YmVlYWEzNDI0NDkxM2YyNzc1MDVlMjlkMmU2ZmIzNWYyZTIzY2E0YWZhMmI2NzY4ZTM5OGQ3MyJ9fX0="
+    head-url: "31937bcd5beaaa34244913f277505e29d2e6fb35f2e23ca4afa2b6768e398d73"
     # Place torches when it's too dark?
     place-torches: true
     # Place redstone torches instead of normal?
@@ -400,7 +400,7 @@ mobs:
     health: 15
     # You can get your custom head here https://minecraft-heads.com/
     # Just copy a "Value" (with =)
-    head-value: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZDI5MzhmMjQxZDc0NDMzZjcyZjVjMzljYjgzYThlNWZmN2UxNzdiYTdjYjQyODY5ZGI2NGUzMDc5MTAyYmZjNSJ9fX0="
+    head-url: "d2938f241d74433f72f5c39cb83a8e5ff7e177ba7cb42869db64e3079102bfc5"
 
   # Mimic
   # Becomes a chest when it has no target

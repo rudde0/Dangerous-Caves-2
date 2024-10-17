@@ -37,8 +37,8 @@ import java.util.WeakHashMap;
 import java.util.function.Predicate;
 
 public class DepthHypoxia implements Tickable, Configurable {
-    private static final PotionEffect SLOW = new PotionEffect(PotionEffectType.SLOW, 120, 1);
-    private static final PotionEffect SLOW_DIGGING = new PotionEffect(PotionEffectType.SLOW_DIGGING, 55, 1);
+    private static final PotionEffect SLOW = new PotionEffect(PotionEffectType.SLOWNESS, 120, 1);
+    private static final PotionEffect SLOW_DIGGING = new PotionEffect(PotionEffectType.MINING_FATIGUE, 55, 1);
 
     private final Plugin plugin;
 

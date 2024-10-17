@@ -23,7 +23,7 @@ import org.bukkit.util.Vector;
 
 public class Watcher extends MobBase implements CustomMob.Ticking, Listener {
     private static final PotionEffect INVISIBILITY = new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false);
-    private static final PotionEffect SLOW = new PotionEffect(PotionEffectType.SLOW, 30, 4);
+    private static final PotionEffect SLOW = new PotionEffect(PotionEffectType.SLOWNESS, 30, 4);
     private static final PotionEffect BLINDNESS = new PotionEffect(PotionEffectType.BLINDNESS, 80, 2);
     private static final Vector ZERO_VECTOR = new Vector(0, 0, 0);
 
@@ -35,7 +35,7 @@ public class Watcher extends MobBase implements CustomMob.Ticking, Listener {
 
     @Override
     protected void configure(ConfigurationSection cfg) {
-        head = Materials.getHeadFromValue(cfg.getString("head-value", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZDI5MzhmMjQxZDc0NDMzZjcyZjVjMzljYjgzYThlNWZmN2UxNzdiYTdjYjQyODY5ZGI2NGUzMDc5MTAyYmZjNSJ9fX0="));
+        head = Materials.getHeadFromURL(cfg.getString("head-url", "d2938f241d74433f72f5c39cb83a8e5ff7e177ba7cb42869db64e3079102bfc5"));
     }
 
     @Override

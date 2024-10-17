@@ -18,7 +18,7 @@ import org.bukkit.potion.PotionEffectType;
 
 public class HungeringDarkness extends MobBase implements Listener {
     private static final PotionEffect INVISIBILITY = new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false);
-    private static final PotionEffect SLOW = new PotionEffect(PotionEffectType.SLOW, Integer.MAX_VALUE, 3, false, false);
+    private static final PotionEffect SLOW = new PotionEffect(PotionEffectType.SLOWNESS, Integer.MAX_VALUE, 3, false, false);
 
     private double damage;
     private boolean remove;
