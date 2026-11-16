@@ -3,7 +3,7 @@ package me.imdanix.caves.regions;
 import me.imdanix.caves.configuration.Configurable;
 import me.imdanix.caves.regions.griefprevention.GriefPreventionFlagsProtector;
 import me.imdanix.caves.regions.griefprevention.GriefPreventionProtector;
-//import me.imdanix.caves.regions.lands.LandsProtector;
+import me.imdanix.caves.regions.lands.LandsProtector;
 import me.imdanix.caves.regions.worldguard.WorldGuard7FlagsProtector;
 import me.imdanix.caves.regions.worldguard.WorldGuard7Protector;
 import me.imdanix.caves.util.Manager;
@@ -44,6 +44,7 @@ public enum Regions implements Manager<RegionProtector>, Configurable {
         // TODO Logger util?
         Logger logger = Bukkit.getPluginManager().getPlugin("DangerousCaves").getLogger();
 
+        current.clear();
         boolean invert = cfg.getBoolean("invert", false);
         String[] modes = cfg.getString("mode", "none").toLowerCase(Locale.ROOT).split(",\\s*");
 
@@ -60,7 +61,10 @@ public enum Regions implements Manager<RegionProtector>, Configurable {
         }
         if (failedModes.size() > 0) {
             String modeOrModes = failedModes.size() > 1 ? "modes(" : "mode(";
-            logger.warning("Cannot find " + modeOrModes + String.join(", ", failedModes) + ") for regions protection.");
+            // Unknown modes are skipped, so the remaining ones decide alone - say it out loud,
+            // a typo here silently leaves every claim/region unprotected
+            logger.severe("Cannot find " + modeOrModes + String.join(", ", failedModes) + ") for regions protection. " +
+                    "These checks are NOT applied - make sure the mode name is correct and its plugin is installed.");
         }
     }
 
@@ -79,10 +83,10 @@ public enum Regions implements Manager<RegionProtector>, Configurable {
     }
 
     public void onEnable() {
-        /*if (Bukkit.getPluginManager().isPluginEnabled("Lands")) {
+        if (Bukkit.getPluginManager().isPluginEnabled("Lands")) {
             register(new LandsProtector(true));
             register(new LandsProtector(false));
-        }*/
+        }
 
         protectors.values().forEach(RegionProtector::onEnable);
     }

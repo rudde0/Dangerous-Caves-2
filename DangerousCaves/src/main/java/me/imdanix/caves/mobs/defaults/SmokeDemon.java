@@ -40,7 +40,8 @@ public class SmokeDemon extends MobBase implements CustomMob.Ticking {
 
     @Override
     public void prepare(LivingEntity entity) {
-        entity.setCustomNameVisible(false);
+        // The body stays invisible, but a configured name should still be readable
+        entity.setCustomNameVisible(name != null);
         entity.addPotionEffect(INVISIBILITY);
         entity.setSilent(true);
         entity.setCanPickupItems(false);

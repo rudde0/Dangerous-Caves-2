@@ -3,6 +3,7 @@ package me.imdanix.caves.mobs;
 import me.imdanix.caves.configuration.Configurable;
 import me.imdanix.caves.util.TagHelper;
 import me.imdanix.caves.util.Utils;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
@@ -63,8 +64,9 @@ public abstract class MobBase implements CustomMob, Configurable {
     public void reload(ConfigurationSection cfg) {
         weight = cfg.getInt("priority", defWeight);
         String nameCfg = cfg.getString("name", defName);
-        name = nameCfg == null || nameCfg.isEmpty() ? null : Utils.clr(cfg.getString("name", defName));
-        if (cfg.isDouble("health")) {
+        name = nameCfg == null || nameCfg.isEmpty() ? null : Utils.clr(nameCfg);
+        // `health: 20` is parsed as an Integer, so isDouble() alone would silently drop whole numbers
+        if (cfg.isDouble("health") || cfg.isInt("health") || cfg.isLong("health")) {
             health = Math.max(cfg.getDouble("health"), 1);
         } else {
             health = defHealth;
@@ -82,7 +84,7 @@ public abstract class MobBase implements CustomMob, Configurable {
     @Override
     public LivingEntity spawn(Location loc) {
         LivingEntity entity = (LivingEntity) loc.getWorld().spawnEntity(loc, type);
-        entity.setCustomName(name);
+        if (name != null) entity.customName(LegacyComponentSerializer.legacySection().deserialize(name));
         if (health != null) Utils.setMaxHealth(entity, health);
         prepare(entity);
         return entity;

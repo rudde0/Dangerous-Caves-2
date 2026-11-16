@@ -15,7 +15,9 @@ import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -99,8 +101,9 @@ public class CaveIns implements Listener, Configurable {
 
             if (slowFall) {
                 allBlocks.forEach(l -> l.forEach(block -> {
-                    world.spawnFallingBlock(block.getLocation(), block.getState().getData());
+                    BlockData data = block.getBlockData();
                     block.setType(Material.AIR);
+                    world.spawn(block.getLocation().add(0.5, 0, 0.5), FallingBlock.class, fb -> fb.setBlockData(data));
                 }));
             } else for (List<Block> blocks : allBlocks) {
                 if (blocks.isEmpty()) continue;

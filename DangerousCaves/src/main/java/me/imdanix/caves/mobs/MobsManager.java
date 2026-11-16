@@ -65,6 +65,7 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
     private Set<EntityType> replaceTypes;
     private int yMin;
     private int yMax;
+    private int spawnTries;
     private double chance;
     private boolean blockRename;
     private boolean metadata;
@@ -86,6 +87,7 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
         blockRename = cfg.getBoolean("restrict-rename", false);
         yMin = cfg.getInt("y-min", -64);
         yMax = cfg.getInt("y-max", 64);
+        spawnTries = Math.max(1, cfg.getInt("spawn-tries", 3));
 
         int maxLight = cfg.getInt("max-light-level", 16);
         if (maxLight < 16) {
@@ -243,17 +245,21 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
     private boolean onSpawn(EntityType type, Location loc, CreatureSpawnEvent.SpawnReason reason) {
         if (disabled || reason != CreatureSpawnEvent.SpawnReason.NATURAL ||
                 !replaceTypes.contains(type) ||
-                !lightCheck.test(loc) ||
                 loc.getBlockY() > yMax ||
                 loc.getBlockY() < yMin ||
                 !worlds.contains(loc.getWorld().getName()) ||
-                !Locations.isCave(loc) ||
-                !Rng.chance(chance))
+                !Rng.chance(chance) ||
+                !lightCheck.test(loc) ||
+                !Locations.isCave(loc))
             return false;
-        CustomMob mob = mobsPool.next();
-        if (mob.canSpawn(loc)) {
-            spawn(mob, loc);
-            return true;
+        // Re-roll when the picked mob rejects the location, otherwise mobs with a
+        // restrictive canSpawn() (i.e. Smoke Demon) waste the whole spawn attempt
+        for (int i = 0; i < spawnTries; i++) {
+            CustomMob mob = mobsPool.next();
+            if (mob.canSpawn(loc)) {
+                spawn(mob, loc);
+                return true;
+            }
         }
         return false;
     }

@@ -34,7 +34,8 @@ integration:
 
   # For disabling features in specific regions
   protection:
-    # Available options: worldguard, worldguard-flags, griefprevention, griefprevention-flags, lands, lands-effectless, none
+    # Available options: worldguard, worldguard-flags, griefprevention, griefprevention-flags,
+    #                    lands, lands-effectless, none
     # If you have several plugins, you can use multiple checks - just separate modes with comma
     # mode: worldguard-flags,griefprevention
     mode: none
@@ -50,10 +51,11 @@ integration:
     # DCNoBlockChange (cave-ins, caves aging)
     # DCNoPlayerEffect (ambient sounds, hypoxia)
 
-    # Lands settings:
-    # ENTITY_GRIEFING (magma monster, lava creeper)
-    # LEAF_DECAY (cave-ins, caves aging)
-    # `lands-effectless` (ambient sounds, hypoxia)
+    # `lands` needs no setup - a claimed area is never touched: no cave-ins, no caves aging,
+    # no entity griefing. Lands' own natural flags are ignored on purpose, since Block Spreading
+    # is enabled by default there and would leave claims open to aging
+    # Lands has no flag for player effects (ambient sounds, hypoxia) - `lands` keeps them inside
+    # claims, `lands-effectless` blocks them there
 
     # Invert checks by default
     invert: false
@@ -168,14 +170,14 @@ caverns:
       - world
     # Chance of a chunk near player being affected
     # Checking every WORLD tick
-    chance: 50
+    chance: 10
     # Radius of cave aging near player
     # In chunks (+1 where the player is)
     radius: 3
     # Maximal Y where aging will be processed
     y-max: 80
     # Chance of block will be affected
-    change-chance: 2.5
+    change-chance: 0.25
     # Maximal light level of block (0-15). Set to -1 to disable the check
     # Can cause some performance issues - this option will force checking every horizontal side of block to detect if there's any light
     max-light-level: -1
@@ -200,7 +202,7 @@ caverns:
       replace: true
     # Replace torch on caves aging. Not affected by `change-chance`
     # Obviously, doesn't work with max-light-level
-    torch-remove-chance: 40
+    torch-remove-chance: 4
     # List of coordinates of chunks that should be ignored
     # To get chunk coordinates just divide your coordinates by 16 and ignore remainder(or use command)
     # "-1,-1" variant is allowed(just one chunk)
@@ -228,6 +230,11 @@ mobs:
   # Minimal and maximal Y coordinate where custom mobs can spawn
   y-min: -60
   y-max: 64
+
+  # How many times to re-roll the mob pool when the picked mob rejects the location
+  # (some mobs, like Smoke Demon, have their own spawn conditions)
+  # 1 restores the old behaviour of skipping the spawn entirely
+  spawn-tries: 3
 
   # Block renaming with name-tags
   restrict-rename: false
@@ -395,12 +402,18 @@ mobs:
   # Watcher
   # Just jumpscares a player
   watcher:
-    priority: 7
+    priority: 3
     name: "&4Watcher"
     health: 15
     # You can get your custom head here https://minecraft-heads.com/
     # Just copy a "Value" (with =)
     head-url: "d2938f241d74433f72f5c39cb83a8e5ff7e177ba7cb42869db64e3079102bfc5"
+    # Don't spawn a new watcher if another one is within this radius (in blocks). Set to 0 to disable
+    nearby-limit-radius: 48
+    # Minimal delay between jumpscares of the same watcher. In seconds
+    scare-cooldown: 2
+    # Watcher only jumpscares its target within this distance (in blocks)
+    max-scare-distance: 24
 
   # Mimic
   # Becomes a chest when it has no target

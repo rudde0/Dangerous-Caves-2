@@ -1,6 +1,5 @@
 package me.imdanix.caves.caverns;
 
-import io.papermc.lib.PaperLib;
 import me.imdanix.caves.configuration.Configurable;
 import me.imdanix.caves.placeholders.Placeholder;
 import me.imdanix.caves.regions.ActionType;
@@ -12,8 +11,7 @@ import me.imdanix.caves.util.Utils;
 import me.imdanix.caves.util.random.Rng;
 import me.imdanix.math.FormulaEvaluator;
 import me.imdanix.math.MathDictionary;
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.TextComponent;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -70,7 +68,7 @@ public class DepthHypoxia implements Tickable, Configurable {
         maxChance = cfg.getDouble("chance-max", 90) / 100;
         minChance = cfg.getDouble("chance-min", 10) / 100;
         yMax = cfg.getInt("y-max", 42);
-        actionbar = cfg.getBoolean("actionbar", true) && PaperLib.isSpigot();
+        actionbar = cfg.getBoolean("actionbar", true);
         messages.clear();
         messages.addAll(Utils.clr(cfg.getStringList("messages")));
         Utils.fillWorlds(cfg.getStringList("worlds"), worlds);
@@ -94,8 +92,7 @@ public class DepthHypoxia implements Tickable, Configurable {
                 if (messages.isEmpty()) continue;
                 String text = Rng.randomElement(messages).replace("%player", player.getName());
                 if (actionbar) {
-                    // Spigot still doesn't have Player#sendActionBar, bruh
-                    player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(text));
+                    player.sendActionBar(LegacyComponentSerializer.legacySection().deserialize(text));
                 } else {
                     player.sendMessage(text);
                 }

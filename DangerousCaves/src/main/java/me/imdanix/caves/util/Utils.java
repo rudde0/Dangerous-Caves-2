@@ -2,6 +2,9 @@ package me.imdanix.caves.util;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
+import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.LivingEntity;
@@ -41,8 +44,23 @@ public final class Utils {
     }
 
     public static void setMaxHealth(LivingEntity entity, double health) {
-        entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(health);
+        entity.getAttribute(Attribute.MAX_HEALTH).setBaseValue(health);
         entity.setHealth(health);
+    }
+
+    @SuppressWarnings("deprecation")
+    public static Sound getSound(String name, Sound def) {
+        if (name == null || name.isEmpty()) return def;
+        NamespacedKey key = NamespacedKey.fromString(name.toLowerCase(Locale.ROOT));
+        if (key != null) {
+            Sound sound = Registry.SOUNDS.get(key);
+            if (sound != null) return sound;
+        }
+        try {
+            return Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.', '_'));
+        } catch (IllegalArgumentException e) {
+            return def;
+        }
     }
 
     public static String capitalize(String str) {

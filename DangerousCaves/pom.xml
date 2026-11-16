@@ -39,10 +39,6 @@
                             <shadedPattern>me.imdanix.caves.metrics</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>io.papermc.lib</pattern>
-                            <shadedPattern>me.imdanix.caves.paperlib</shadedPattern>
-                        </relocation>
-                        <relocation>
                             <pattern>me.imdanix.math</pattern>
                             <shadedPattern>me.imdanix.caves.utils.math</shadedPattern>
                         </relocation>
@@ -82,17 +78,10 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.spigotmc</groupId>
-            <artifactId>spigot-api</artifactId>
-            <version>${bukkit.version}</version>
+            <groupId>io.papermc.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <version>${paper.version}</version>
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.papermc</groupId>
-            <artifactId>paperlib</artifactId>
-            <version>1.0.7</version>
-            <scope>compile</scope>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.bstats</groupId>
@@ -111,7 +100,7 @@
         <dependency>
             <groupId>me.clip</groupId>
             <artifactId>placeholderapi</artifactId>
-            <version>2.11.2</version>
+            <version>2.12.2</version>
             <scope>provided</scope>
         </dependency>
 
@@ -137,12 +126,12 @@
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
-        <!--<dependency>
+        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>regions-lands</artifactId>
             <version>${project.version}</version>
             <scope>compile</scope>
             <optional>true</optional>
-        </dependency>-->
+        </dependency>
     </dependencies>
 </project>

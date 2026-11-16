@@ -1,6 +1,5 @@
 package me.imdanix.caves.caverns;
 
-import io.papermc.lib.PaperLib;
 import me.imdanix.caves.configuration.Configurable;
 import me.imdanix.caves.regions.ActionType;
 import me.imdanix.caves.regions.Regions;
@@ -141,9 +140,7 @@ public class CavesAging implements Tickable, Configurable {
                     Chunk chunk = queuedChunk.getChunk(world);
                     if (chunk == null || !chunk.isLoaded()) {
                         if (forceLoad) {
-                            PaperLib.getChunkAtAsync(world, queuedChunk.x, queuedChunk.z).thenAccept(
-                                    this::proceedChunk
-                            );
+                            world.getChunkAtAsync(queuedChunk.x, queuedChunk.z).thenAccept(this::proceedChunk);
                         }
                     } else proceedChunk(chunk);
                 }, schedule);
@@ -267,12 +264,17 @@ public class CavesAging implements Tickable, Configurable {
             Block block = chunk.getBlock(x, y, z);
             Material type = block.getType();
             if (!lightLevelCheck.test(block)) return;
+            // The changes were calculated async against neighbouring blocks, and a claim could have
+            // appeared in the meantime - test the block we're really about to touch
+            if (!Regions.INSTANCE.isAllowed(ActionType.BLOCK, block.getLocation())) return;
             switch (changeType) {
                 case VINE -> {
                     if (!replaceBlocks.contains(type)) return;
                     for (BlockFace face : Locations.HORIZONTAL_FACES) {
                         Block relBlock = block.getRelative(face);
-                        if (relBlock.getType().isAir()) {
+                        // Vines spread sideways, so they can reach into a neighbouring chunk/claim
+                        if (relBlock.getType().isAir()
+                                && Regions.INSTANCE.isAllowed(ActionType.BLOCK, relBlock.getLocation())) {
                             relBlock.setType(Material.VINE, false);
                             Materials.rotate(relBlock, face.getOppositeFace());
                         }

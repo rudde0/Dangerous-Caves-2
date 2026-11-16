@@ -1,15 +1,26 @@
 package me.imdanix.caves.regions.lands;
 
-import me.angeschossen.lands.api.integration.LandsIntegration;
+import me.angeschossen.lands.api.LandsIntegration;
 import me.angeschossen.lands.api.land.Area;
-import me.angeschossen.lands.api.land.LandS;
 import me.imdanix.caves.regions.ActionType;
 import me.imdanix.caves.regions.RegionProtector;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 
+/**
+ * Lands 7.x integration.
+ * <p>
+ * A claimed area is never touched: no cave-ins, no caves aging, no entity griefing, whatever the
+ * land's flags say. Lands' own natural flags are deliberately not consulted - {@code BLOCK_SPREADING}
+ * is enabled by default there (it's the flag that lets grass and vines grow), so honouring it would
+ * leave claims open to aging until every single owner turned it off.
+ * <p>
+ * Lands has no flag for player effects (ambient sounds, hypoxia), so those are controlled by the
+ * chosen mode: {@code lands} keeps them inside claims, {@code lands-effectless} blocks them there.
+ */
 public class LandsProtector implements RegionProtector {
     private static LandsIntegration landsIntegration;
+
     private final boolean effect;
 
     public LandsProtector(boolean effect) {
@@ -19,7 +30,7 @@ public class LandsProtector implements RegionProtector {
     @Override
     public void onEnable() {
         if (landsIntegration != null) return;
-        landsIntegration = new LandsIntegration(Bukkit.getPluginManager().getPlugin("DangerousCaves"));
+        landsIntegration = LandsIntegration.of(Bukkit.getPluginManager().getPlugin("DangerousCaves"));
     }
 
     @Override
@@ -29,16 +40,12 @@ public class LandsProtector implements RegionProtector {
 
     @Override
     public boolean test(ActionType type, Location location) {
-        Area area = landsIntegration.getAreaByLoc(location);
+        if (landsIntegration == null) return true;
 
-        if (area == null) {
-            return true;
-        }
+        Area area = landsIntegration.getArea(location);
+        // Wilderness - nothing to protect
+        if (area == null) return true;
 
-        return switch (type) {
-            case ENTITY -> area.hasLandSetting(LandSetting.ENTITY_GRIEFING);
-            case BLOCK -> area.hasLandSetting(LandSetting.LEAF_DECAY);
-            case EFFECT -> effect;
-        };
+        return type == ActionType.EFFECT && effect;
     }
 }

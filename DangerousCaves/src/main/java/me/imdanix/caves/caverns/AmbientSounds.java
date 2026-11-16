@@ -20,7 +20,6 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 public class AmbientSounds implements Tickable, Configurable {
@@ -45,13 +44,15 @@ public class AmbientSounds implements Tickable, Configurable {
         yMax = cfg.getInt("y-max", 64);
         radius = cfg.getDouble("near", 7);
         sounds.clear();
-        for (String soundStr : Configuration.section(cfg, "sounds").getKeys(false)) {
-            Sound sound = Utils.getEnum(Sound.class, soundStr.toUpperCase(Locale.ROOT));
+        ConfigurationSection soundsCfg = Configuration.section(cfg, "sounds");
+        for (String soundStr : soundsCfg.getKeys(false)) {
+            Sound sound = Utils.getSound(soundStr, null);
             if (sound == null) continue;
+            ConfigurationSection soundCfg = soundsCfg.getConfigurationSection(soundStr);
             sounds.add(new WrappedSound(
                     sound,
-                    cfg.getDouble("volume", 1),
-                    cfg.getDouble("pitch", 0.5)
+                    soundCfg == null ? 1 : soundCfg.getDouble("volume", 1),
+                    soundCfg == null ? 0.5 : soundCfg.getDouble("pitch", 0.5)
             ));
         }
         if (sounds.isEmpty()) chance = 0;
