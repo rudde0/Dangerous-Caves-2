@@ -15,14 +15,20 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
+import java.util.logging.Logger;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 public final class Utils {
     private final static Pattern FLOAT = Pattern.compile("-?\\d+(\\.\\d+)?");
+    // Configured world lists by config path, for warnUnknownWorlds()
+    private final static Map<String, List<String>> CONFIGURED_WORLDS = new LinkedHashMap<>();
 
     public static String clr(String s){
         return s == null ? null : ChatColor.translateAlternateColorCodes('&', s);
@@ -31,6 +37,30 @@ public final class Utils {
     public static List<String> clr(List<String> list) {
         list.replaceAll(Utils::clr);
         return list;
+    }
+
+    /**
+     * Fill the world names of a feature and remember them for {@link #warnUnknownWorlds(Logger)}
+     * @param path Config path of the list, for the warning
+     */
+    public static void fillWorlds(String path, List<String> worldsStr, Collection<String> into) {
+        CONFIGURED_WORLDS.put(path, List.copyOf(worldsStr));
+        fillWorlds(worldsStr, into);
+    }
+
+    /**
+     * Names are matched verbatim against World#getName(), so a typo or a dimension key
+     * ("worlds:resourceworld" instead of "worlds_resourceworld") silently disables the feature there
+     */
+    public static void warnUnknownWorlds(Logger logger) {
+        for (Map.Entry<String, List<String>> entry : CONFIGURED_WORLDS.entrySet()) {
+            for (String name : entry.getValue()) {
+                if (Bukkit.getWorld(name) != null) continue;
+                StringJoiner loaded = new StringJoiner(", ");
+                for (World world : Bukkit.getWorlds()) loaded.add(world.getName());
+                logger.warning(entry.getKey() + ": '" + name + "' is not a loaded world, nothing happens there. Loaded: " + loaded);
+            }
+        }
     }
 
     public static void fillWorlds(List<String> worldsStr, Collection<String> into) {

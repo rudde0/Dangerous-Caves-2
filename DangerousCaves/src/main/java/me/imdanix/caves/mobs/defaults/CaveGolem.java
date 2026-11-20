@@ -40,14 +40,9 @@ public class CaveGolem extends MobBase implements Listener {
     private static final PotionEffect CONFUSION = new PotionEffect(PotionEffectType.NAUSEA, 20, 0);
     private static final PotionEffect SLOW_PL = new PotionEffect(PotionEffectType.SLOWNESS, 40, 1);
 
-    private static final ItemStack CHESTPLATE = Materials.getColored(EquipmentSlot.CHEST, 105, 105, 105);;
+    private static final ItemStack CHESTPLATE = Materials.getColored(EquipmentSlot.CHEST, 105, 105, 105);
     private static final ItemStack LEGGINGS = Materials.getColored(EquipmentSlot.LEGS, 105, 105, 105);
     private static final ItemStack BOOTS = Materials.getColored(EquipmentSlot.FEET, 105, 105, 105);
-
-    private static final Set<Material> PICKAXES = new Materials.Builder(
-            Material.WOODEN_PICKAXE, Material.STONE_PICKAXE, Material.IRON_PICKAXE, Material.DIAMOND_PICKAXE,
-            Material.NETHERITE_PICKAXE, Material.GOLDEN_PICKAXE
-    ).build(true);
 
     private final Plugin plugin;
     private final MobsManager mobs;
@@ -94,10 +89,11 @@ public class CaveGolem extends MobBase implements Listener {
                         if (mobs.checkWorld(block.getWorld().getName())
                                 && materials.contains(block.getType()) && Rng.chance(breakChance)
                                 && Regions.INSTANCE.isAllowed(ActionType.ENTITY, block.getLocation())) {
+                            LivingEntity golem = mobs.spawn(CaveGolem.this, block.getLocation());
+                            if (golem == null) return;
                             event.setDropItems(false);
                             event.setExpToDrop(0);
-                            mobs.spawn(CaveGolem.this, block.getLocation())
-                                    .getEquipment().setHelmet(new ItemStack(block.getType()));
+                            golem.getEquipment().setHelmet(new ItemStack(block.getType()));
                         }
                     }
                 }, plugin);
@@ -140,7 +136,7 @@ public class CaveGolem extends MobBase implements Listener {
         if (isThis(entity)) {
             if (event instanceof EntityDamageByEntityEvent enEvent) {
                 if (enEvent.getDamager() instanceof Player player) {
-                    if (PICKAXES.contains(player.getInventory().getItemInMainHand().getType())) {
+                    if (Materials.isPickaxe(player.getInventory().getItemInMainHand().getType())) {
                         Locations.playSound(entity.getLocation(), Sound.ITEM_SHIELD_BLOCK, SoundCategory.HOSTILE, 0.6f, 1);
                         event.setDamage(event.getDamage() * pickaxeModifier);
                         return;

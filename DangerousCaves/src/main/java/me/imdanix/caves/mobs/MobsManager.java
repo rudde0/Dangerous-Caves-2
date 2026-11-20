@@ -22,6 +22,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -50,8 +51,12 @@ import java.util.regex.Pattern;
 public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Configurable {
     private static final Pattern CUSTOM_TYPE_PATTERN = Pattern.compile("[a-z\\d_-]+");
 
-    private final Map<CustomMob.Ticking, Set<UUID>> tickingEntities = new HashMap<>();
+    // Ticking mobs keep a reference to their entity: one validity check per ENTITY tick instead of
+    // a UUID lookup through every world. Invalid ones are looked up once (cross-world travel keeps the UUID)
+    private final Map<CustomMob.Ticking, Map<UUID, LivingEntity>> tickingEntities = new HashMap<>();
     private final MetadataValue MARKER;
+    // Natural spawn replacement lives in its own listener, so a reload can switch it alone
+    private final Listener spawnListener;
 
     private final Plugin plugin;
     private final Configuration config;
@@ -79,6 +84,13 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
         mobs = new HashMap<>();
         worlds = new HashSet<>();
         mobsPool = new WeightedPool<>();
+        spawnListener = new Listener() {
+            @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+            public void onSpawn(CreatureSpawnEvent event) {
+                if (MobsManager.this.onSpawn(event.getEntityType(), event.getLocation(), event.getSpawnReason()))
+                    event.setCancelled(true);
+            }
+        };
     }
 
     @Override
@@ -96,7 +108,7 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
             lightCheck = (l) -> true;
         }
 
-        Utils.fillWorlds(cfg.getStringList("worlds"), worlds);
+        Utils.fillWorlds("mobs.worlds", cfg.getStringList("worlds"), worlds);
 
         List<String> replaceMobs = cfg.isList("replace-mobs") ?
                                    cfg.getStringList("replace-mobs") :
@@ -108,9 +120,11 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
         recalculateChances();
 
         metadata = cfg.getBoolean("add-metadata", false);
-        CreatureSpawnEvent.getHandlerList().unregister(this);
+        // Only the spawn listener is switched here; the rest of this listener is registered once on enable
+        // (registering `this` again duplicated the attack/load/interact handlers on every reload)
+        HandlerList.unregisterAll(spawnListener);
         if (!disabled) {
-            Bukkit.getPluginManager().registerEvents(this, plugin);
+            Bukkit.getPluginManager().registerEvents(spawnListener, plugin);
         }
     }
 
@@ -134,29 +148,38 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
         if (!CUSTOM_TYPE_PATTERN.matcher(mob.getCustomType()).matches() || mobs.containsKey(mob.getCustomType())) {
             return false;
         }
-        mobsPool.add(mob, mob.getWeight());
         mobs.put(mob.getCustomType(), mob);
+        // Configure first: the weight is read from the config
         if (mob instanceof Configurable configurable)
             config.register(configurable);
+        mobsPool.add(mob, mob.getWeight());
         if (mob instanceof Listener listener)
             plugin.getServer().getPluginManager().registerEvents(listener, plugin);
         if (mob instanceof Tickable tickable)
             dynamics.register(tickable);
         if (mob instanceof CustomMob.Ticking ticking)
-            tickingEntities.put(ticking, new HashSet<>());
+            tickingEntities.put(ticking, new HashMap<>());
         return true;
     }
 
     @Override
     public void tick() {
-        for (Map.Entry<CustomMob.Ticking, Set<UUID>> entry : tickingEntities.entrySet()) {
+        for (Map.Entry<CustomMob.Ticking, Map<UUID, LivingEntity>> entry : tickingEntities.entrySet()) {
             CustomMob.Ticking mob = entry.getKey();
-            Iterator<UUID> uuids = entry.getValue().iterator();
-            while (uuids.hasNext()) {
-                Entity entity = Bukkit.getEntity(uuids.next());
-                if (entity == null) {
-                    uuids.remove();
-                } else mob.tick((LivingEntity) entity);
+            Iterator<Map.Entry<UUID, LivingEntity>> it = entry.getValue().entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<UUID, LivingEntity> tracked = it.next();
+                LivingEntity entity = tracked.getValue();
+                if (!entity.isValid()) {
+                    // Unloaded or dead; a mob that changed worlds is the same UUID in another entity object
+                    if (entity.isDead() || !(Bukkit.getEntity(tracked.getKey()) instanceof LivingEntity moved)
+                            || !moved.isValid()) {
+                        it.remove();
+                        continue;
+                    }
+                    tracked.setValue(entity = moved);
+                }
+                mob.tick(entity);
             }
         }
     }
@@ -190,6 +213,8 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
      */
     public LivingEntity spawn(CustomMob mob, Location loc) {
         LivingEntity entity = mob.spawn(loc);
+        // A mob may refuse the spawn after the fact (Ore Mole without its model removes itself)
+        if (entity == null || entity.isDead()) return null;
         TagHelper.setTag(entity, mob.getCustomType());
         if (metadata) entity.setMetadata("DangerousCaves", MARKER);
         if (mob instanceof CustomMob.Ticking ticking) {
@@ -202,21 +227,27 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChunkLoad(EntitiesLoadEvent event) {
         for (Entity entity : event.getEntities()) {
-            if (!(entity instanceof LivingEntity livingEntity)) continue;
+            // The scoreboard tag is a plain set lookup, cheaper than a PDC read on every loaded entity
+            if (!(entity instanceof LivingEntity livingEntity)
+                    || !entity.getScoreboardTags().contains(TagHelper.SCOREBOARD_TAG)) continue;
             String type = TagHelper.getTag(livingEntity);
             if (type != null) {
                 if (metadata) entity.setMetadata("DangerousCaves", MARKER);
                 CustomMob mob = mobs.get(type);
+                if (mob == null) continue;
                 if (mob instanceof CustomMob.Ticking ticking) {
                     handleTicking(livingEntity, ticking);
                 }
+                mob.onLoad(livingEntity);
             }
         }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntityAttack(EntityDamageByEntityEvent event) {
-        if (event.getEntityType() == EntityType.PLAYER && event.getDamager() instanceof LivingEntity) {
+        // Only DC mobs have listeners for PlayerAttackedEvent; skip PvP and vanilla mobs
+        if (event.getEntityType() == EntityType.PLAYER && event.getDamager() instanceof LivingEntity
+                && event.getDamager().getScoreboardTags().contains(TagHelper.SCOREBOARD_TAG)) {
             PlayerAttackedEvent pEvent = new PlayerAttackedEvent((Player) event.getEntity(), (LivingEntity) event.getDamager(), event.getDamage());
             Bukkit.getPluginManager().callEvent(pEvent);
             event.setDamage(pEvent.getDamage());
@@ -236,12 +267,6 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onSpawn(CreatureSpawnEvent event) {
-        if (onSpawn(event.getEntityType(), event.getLocation(), event.getSpawnReason()))
-            event.setCancelled(true);
-    }
-
     private boolean onSpawn(EntityType type, Location loc, CreatureSpawnEvent.SpawnReason reason) {
         if (disabled || reason != CreatureSpawnEvent.SpawnReason.NATURAL ||
                 !replaceTypes.contains(type) ||
@@ -257,8 +282,8 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
         for (int i = 0; i < spawnTries; i++) {
             CustomMob mob = mobsPool.next();
             if (mob.canSpawn(loc)) {
-                spawn(mob, loc);
-                return true;
+                // Cancel the vanilla spawn only when the custom one really happened
+                return spawn(mob, loc) != null;
             }
         }
         return false;
@@ -279,7 +304,20 @@ public class MobsManager implements Manager<CustomMob>, Listener, Tickable, Conf
      * @param mob Related custom mob
      */
     public void handleTicking(LivingEntity entity, CustomMob.Ticking mob) {
-        tickingEntities.get(mob).add(entity.getUniqueId());
+        tickingEntities.get(mob).put(entity.getUniqueId(), entity);
+    }
+
+    /**
+     * Let mobs clean their transient state before the worlds are saved
+     */
+    public void disable() {
+        for (CustomMob mob : mobs.values()) {
+            try {
+                mob.onDisable();
+            } catch (RuntimeException e) {
+                plugin.getLogger().warning("Failed to disable mob " + mob.getCustomType() + ": " + e);
+            }
+        }
     }
 
     public Plugin getPlugin() {

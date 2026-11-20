@@ -6,6 +6,8 @@ import me.imdanix.caves.util.Utils;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -83,11 +85,24 @@ public abstract class MobBase implements CustomMob, Configurable {
 
     @Override
     public LivingEntity spawn(Location loc) {
-        LivingEntity entity = (LivingEntity) loc.getWorld().spawnEntity(loc, type);
+        LivingEntity entity = (LivingEntity) loc.getWorld().spawnEntity(loc, type, randomizeData());
         if (name != null) entity.customName(LegacyComponentSerializer.legacySection().deserialize(name));
         if (health != null) Utils.setMaxHealth(entity, health);
         prepare(entity);
         return entity;
+    }
+
+    /**
+     * Whether vanilla spawn randomisation runs (baby and jockey chances, random gear). Mobs whose look
+     * is fixed (a model, a single visible head) turn it off
+     */
+    protected boolean randomizeData() {
+        return true;
+    }
+
+    protected static void setBaseAttribute(LivingEntity entity, Attribute attribute, double value) {
+        AttributeInstance instance = entity.getAttribute(attribute);
+        if (instance != null) instance.setBaseValue(value);
     }
 
     @Override

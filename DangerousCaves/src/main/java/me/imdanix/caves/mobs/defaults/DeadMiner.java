@@ -46,9 +46,15 @@ public class DeadMiner extends MobBase implements CustomMob.Ticking, Listener {
     protected void configure(ConfigurationSection cfg) {
         requiresTarget = cfg.getBoolean("requires-target", true);
         torches = cfg.getBoolean("place-torches", true);
-        redTorches = cfg.getBoolean("redstone-torches", false);
+        // The config documents `red-torches`; `redstone-torches` is what the code used to read
+        redTorches = cfg.getBoolean("red-torches", cfg.getBoolean("redstone-torches", false));
         dropChance = cfg.getDouble("drop-chance", 16.67) / 100;
-        head = Materials.getHeadFromURL(cfg.getString("head-url", "31937bcd5beaaa34244913f277505e29d2e6fb35f2e23ca4afa2b6768e398d73"));
+        // `head-url` (texture hash or URL) wins; older configs carry a minecraft-heads `head-value` (base64).
+        // The old default hash had a typo (5beaaa) and pointed at no texture
+        ItemStack valueHead = cfg.isString("head-url") || !cfg.isString("head-value") ? null
+                : Materials.getHeadFromValue(cfg.getString("head-value"));
+        head = valueHead != null ? valueHead
+                : Materials.getHeadFromURL(cfg.getString("head-url", "31937bcd5beeaa34244913f277505e29d2e6fb35f2e23ca4afa2b6768e398d73"));
 
         items = new ArrayList<>(Materials.getSet(cfg.getStringList("drop-items")));
 
@@ -91,16 +97,16 @@ public class DeadMiner extends MobBase implements CustomMob.Ticking, Listener {
         if (!torches || entity.hasPotionEffect(PotionEffectType.NAUSEA)) return;
         Block block = entity.getLocation().getBlock();
 
+        // Block checks before the region query: the query ran every ENTITY tick for every dark Dead Miner
         if (block.getLightLevel() > 0 || (requiresTarget && ((Monster)entity).getTarget() == null) ||
+                !block.getType().isAir() || !Materials.isCave(block.getRelative(BlockFace.DOWN).getType()) ||
                 !Regions.INSTANCE.isAllowed(ActionType.ENTITY, block.getLocation()))
             return;
 
-        if (block.getType().isAir() && Materials.isCave(block.getRelative(BlockFace.DOWN).getType())) {
-            block.setType(redTorches ? Material.REDSTONE_TORCH : Material.TORCH, false);
-            Locations.playSound(block.getLocation(), Sound.BLOCK_WOOD_PLACE, 1, 1);
-            if (cooldownEffect != null) {
-                entity.addPotionEffect(cooldownEffect);
-            }
+        block.setType(redTorches ? Material.REDSTONE_TORCH : Material.TORCH, false);
+        Locations.playSound(block.getLocation(), Sound.BLOCK_WOOD_PLACE, 1, 1);
+        if (cooldownEffect != null) {
+            entity.addPotionEffect(cooldownEffect);
         }
     }
 }

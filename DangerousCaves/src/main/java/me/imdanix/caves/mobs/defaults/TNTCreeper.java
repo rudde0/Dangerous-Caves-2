@@ -18,7 +18,9 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 public class TNTCreeper extends MobBase implements Listener {
-    private static final PotionEffect INCREASE_DAMAGE = new PotionEffect(PotionEffectType.INSTANT_DAMAGE, Integer.MAX_VALUE, 0, false, true);
+    // Upstream's INCREASE_DAMAGE is STRENGTH (renamed in 1.20.5). INSTANT_DAMAGE with a long duration hurts every
+    // tick an instant effect stays on, so TNT Creepers died of magic damage ~1.5 s after spawning
+    private static final PotionEffect INCREASE_DAMAGE = new PotionEffect(PotionEffectType.STRENGTH, Integer.MAX_VALUE, 0, false, true);
 
     private int tntAmount;
     private double explosionChance;
@@ -42,7 +44,8 @@ public class TNTCreeper extends MobBase implements Listener {
     public void onExplosion(EntityExplodeEvent event) {
         if (!isThis(event.getEntity())) return;
         LivingEntity entity = (LivingEntity) event.getEntity();
-        entity.removePotionEffect(PotionEffectType.INSTANT_DAMAGE);
+        // No lingering effect cloud from the explosion
+        entity.removePotionEffect(PotionEffectType.STRENGTH);
         Location loc = event.getLocation();
         for (int i = 0; i < tntAmount; i++) {
             Entity tnt = entity.getWorld().spawnEntity(loc, EntityType.TNT);
@@ -50,7 +53,7 @@ public class TNTCreeper extends MobBase implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onDamage(EntityDamageByEntityEvent event) {
         if (explosionChance > 0 && isThis(event.getEntity()) && Rng.chance(explosionChance)) {
             event.getDamager().getWorld().createExplosion(event.getDamager().getLocation(), 0.01f);

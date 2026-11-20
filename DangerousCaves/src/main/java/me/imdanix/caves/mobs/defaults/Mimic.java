@@ -146,7 +146,8 @@ public class Mimic extends MobBase implements CustomMob.Ticking, Listener {
     }
 
     private boolean openMimic(Block block, Player player) {
-        String tag = TagHelper.getTag(block.getState());
+        // No snapshot: this runs on every chest click, and a snapshot copies the whole inventory
+        String tag = TagHelper.getTag(block.getState(false));
         if (tag == null || !tag.startsWith("mimic")) return false;
         if (!block.getRelative(BlockFace.UP).isPassable()) return true;
         block.setType(Material.AIR);
@@ -154,6 +155,7 @@ public class Mimic extends MobBase implements CustomMob.Ticking, Listener {
         if (health <= 0) health = 1;
         Location loc = block.getLocation();
         LivingEntity entity = mobsManager.spawn(this, loc.add(0.5, 0, 0.5));
+        if (entity == null) return true;
         Utils.setMaxHealth(entity, this.health);
         entity.setHealth(Math.min(health, this.health));
         Locations.playSound(loc, Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 1f, 0.5f);
@@ -171,7 +173,7 @@ public class Mimic extends MobBase implements CustomMob.Ticking, Listener {
         return true;
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         Entity entity = event.getEntity();
         if (isThis(entity)) Locations.playSound(entity.getLocation(), Sound.BLOCK_SHULKER_BOX_OPEN, 1f, 0.2f);

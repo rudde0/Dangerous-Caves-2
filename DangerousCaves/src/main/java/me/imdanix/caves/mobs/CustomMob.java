@@ -42,6 +42,23 @@ public interface CustomMob {
     }
 
     /**
+     * Called for an entity of this mob that comes back with its chunk (or the server start).
+     * Transient state the mob put on the entity (AI off, invulnerability) must be healed here,
+     * since it was saved with the chunk.
+     * @param entity Loaded entity
+     */
+    default void onLoad(LivingEntity entity) {
+        // Most mobs keep no transient state
+    }
+
+    /**
+     * Called when the plugin disables, before the worlds are saved
+     */
+    default void onDisable() {
+        // Most mobs keep no transient state
+    }
+
+    /**
      * Get base type of custom mob
      * @return Base type
      */

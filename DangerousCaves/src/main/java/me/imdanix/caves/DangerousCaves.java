@@ -10,6 +10,8 @@ import me.imdanix.caves.mobs.MobsManager;
 import me.imdanix.caves.placeholders.DCExpansion;
 import me.imdanix.caves.regions.Regions;
 import me.imdanix.caves.ticks.Dynamics;
+import me.imdanix.caves.util.PmeBridge;
+import me.imdanix.caves.util.Utils;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -39,6 +41,8 @@ public class DangerousCaves extends JavaPlugin {
         dynamics = new Dynamics(this);
         cfg = new Configuration(this, "config", YamlConfiguration.loadConfiguration(Objects.requireNonNull(getTextResource("plugin.yml"))).getString("config-version", "0"));
         cfg.create(true);
+        // Before the mobs: Watcher and Ore Mole ask it while spawning
+        PmeBridge.init(this);
         mobsManager = new MobsManager(this, cfg, dynamics);
         DefaultMobs.registerAll(mobsManager);
 
@@ -76,7 +80,15 @@ public class DangerousCaves extends JavaPlugin {
         Bukkit.getScheduler().runTask(this, () -> {
             Regions.INSTANCE.onDone();
             cfg.register(Regions.INSTANCE);
+            // Every world is loaded by now (world plugins included)
+            Utils.warnUnknownWorlds(getLogger());
         });
+    }
+
+    @Override
+    public void onDisable() {
+        // Before the worlds are saved: mobs with transient state (Ore Mole mid-burrow) get it back to normal
+        if (mobsManager != null) mobsManager.disable();
     }
 
     public MobsManager getMobs() {

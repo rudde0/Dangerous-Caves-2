@@ -20,7 +20,7 @@
     <description>Adds and improves mechanics in caves</description>
     <properties>
         <project.subversion>3.0-SNAPSHOT</project.subversion>
-        <config.version>24</config.version>
+        <config.version>25</config.version>
         <paper.version>26.1.2.build.66-stable</paper.version>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

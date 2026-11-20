@@ -3,6 +3,7 @@ package me.imdanix.caves.util;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Material;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
@@ -18,46 +19,21 @@ import org.bukkit.profile.PlayerProfile;
 import org.bukkit.profile.PlayerTextures;
 
 import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class Materials {
-    public static final List<Material> HELMETS;
-    public static final List<Material> LEGGINGS;
-    public static final List<Material> CHESTPLATES;
-    public static final List<Material> BOOTS;
-    static {
-        List<Material> helmets = new ArrayList<>();
-        List<Material> leggings = new ArrayList<>();
-        List<Material> chestplates = new ArrayList<>();
-        List<Material> boots = new ArrayList<>();
-        for (Material mat : Material.values()) {
-            String name = mat.name();
-            if (name.endsWith("_HELMET")) {
-                helmets.add(mat);
-            } else if (name.endsWith("_LEGGINGS")) {
-                leggings.add(mat);
-            } else if (name.endsWith("_CHESTPLATE")) {
-                chestplates.add(mat);
-            } else if (name.endsWith("_BOOTS")) {
-                boots.add(mat);
-            }
-        }
-        helmets.add(Material.CARVED_PUMPKIN);
-
-        HELMETS = Collections.unmodifiableList(helmets);
-        LEGGINGS = Collections.unmodifiableList(leggings);
-        CHESTPLATES = Collections.unmodifiableList(chestplates);
-        BOOTS = Collections.unmodifiableList(boots);
-    }
+    private static final Pattern TEXTURE_URL = Pattern.compile("\"url\"\\s*:\\s*\"([^\"]+)\"");
 
     private static final Set<Material> CAVE = new Builder(
             Material.ANDESITE, Material.DIORITE, Material.GRANITE, Material.CALCITE, Material.TUFF, Material.DRIPSTONE_BLOCK,
@@ -106,11 +82,12 @@ public final class Materials {
         ItemMeta meta = item.getItemMeta();
         SkullMeta skullMeta = (SkullMeta) meta;
 
-        PlayerProfile pp = Bukkit.createPlayerProfile(UUID.fromString("4fbecd49-c7d4-4c18-8410-adf7a7348728"));
+        // One profile id per texture: heads with different skins never share an id
+        PlayerProfile pp = Bukkit.createPlayerProfile(UUID.nameUUIDFromBytes(URLTexture.getBytes(StandardCharsets.UTF_8)));
         PlayerTextures pt = pp.getTextures();
         try {
-            pt.setSkin(new URL("http://textures.minecraft.net/texture/" + URLTexture));
-        } catch (MalformedURLException e) {e.printStackTrace();}
+            pt.setSkin(URI.create("http://textures.minecraft.net/texture/" + URLTexture).toURL());
+        } catch (MalformedURLException | IllegalArgumentException e) {e.printStackTrace();}
         pp.setTextures(pt);
         skullMeta.setOwnerProfile(pp);
         meta = skullMeta;
@@ -123,8 +100,30 @@ public final class Materials {
         );*/
     }
 
+    /**
+     * Head from a minecraft-heads.com "Value" (base64 of the textures JSON)
+     * @param value Base64 value
+     * @return Head, or null when the value holds no texture URL
+     */
+    public static ItemStack getHeadFromValue(String value) {
+        try {
+            String json = new String(Base64.getDecoder().decode(value.trim()), StandardCharsets.UTF_8);
+            Matcher matcher = TEXTURE_URL.matcher(json);
+            return matcher.find() ? getHeadFromURL(matcher.group(1)) : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     public static boolean isCave(Material type) {
         return CAVE.contains(type);
+    }
+
+    /**
+     * Every pickaxe the server knows, copper included (a hardcoded list missed it)
+     */
+    public static boolean isPickaxe(Material type) {
+        return Tag.ITEMS_PICKAXES.isTagged(type);
     }
 
     public static Set<Material> getSet(Collection<String> types) {
@@ -161,14 +160,6 @@ public final class Materials {
         meta.setColor(Color.fromRGB(r, g, b));
         item.setItemMeta(meta);
         return item;
-    }
-
-    public static Material or(String... types) {
-        for (String typeStr : types) {
-            Material type = Material.getMaterial(typeStr.toUpperCase(Locale.ROOT));
-            if (type != null) return type;
-        }
-        return null;
     }
 
     public static class Builder {

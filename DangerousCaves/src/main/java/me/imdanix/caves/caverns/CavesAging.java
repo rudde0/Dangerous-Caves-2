@@ -78,8 +78,11 @@ public class CavesAging implements Tickable, Configurable {
         lightLevel = cfg.getInt("max-light-level", -1);
         if (lightLevel >= 0) {
             lightLevelCheck = (b) -> {
-                for (BlockFace face : Locations.HORIZONTAL_FACES)
-                    if (b.getRelative(face).getLightFromBlocks() >= lightLevel) return false;
+                for (BlockFace face : Locations.HORIZONTAL_FACES) {
+                    Block rel = b.getRelative(face);
+                    // A neighbour in an unloaded chunk would be loaded synchronously: skip the block
+                    if (!isLoaded(rel) || rel.getLightFromBlocks() >= lightLevel) return false;
+                }
                 return true;
             };
         } else {
@@ -88,7 +91,7 @@ public class CavesAging implements Tickable, Configurable {
         schedule = Math.max(cfg.getInt("schedule-timer", 4), 1);
         forceLoad = cfg.getBoolean("force-load", true);
         torchRemove = cfg.getDouble("torch-remove-chance", 40) / 100;
-        Utils.fillWorlds(cfg.getStringList("worlds"), worlds);
+        Utils.fillWorlds("caverns.aging.worlds", cfg.getStringList("worlds"), worlds);
         skippedChunks.clear();
         ConfigurationSection boundsCfg = cfg.getConfigurationSection("skip-chunks");
         if (boundsCfg != null) {
@@ -115,37 +118,39 @@ public class CavesAging implements Tickable, Configurable {
 
     @Override
     public void tick() {
-        if (disabled) return;
+        if (disabled || chance <= 0) return;
 
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-            for (String worldName : worlds) {
-                World world = Bukkit.getWorld(worldName);
-                if (world == null) continue;
-                Set<QueuedChunk> chunks = new HashSet<>();
-                for (Player player : world.getPlayers()) {
-                    if (!player.isOnline() || player.getWorld() != world) continue;
-                    Location startLoc = player.getLocation();
-                    int xCenter = startLoc.getBlockX() >> 4;
-                    int zCenter = startLoc.getBlockZ() >> 4;
-                    for (int x = xCenter - radius, xMax = xCenter + radius; x <= xMax; x++) {
-                        for (int z = zCenter - radius, zMax = zCenter + radius; z <= zMax; z++) {
-                            if (isAllowed(world, x, z)) {
-                                chunks.add(new QueuedChunk(x, z));
-                            }
+        // Runs on the main thread: it reads worlds and players, which the old async version did unsafely.
+        // The chance is rolled once per chunk before anything is queued. The old code snapshotted every
+        // chunk around every player and only then dropped (1 - chance) of them; at 250 players and one
+        // chunk per schedule-timer its queue outgrew the WORLD tick period and the timers piled up
+        for (String worldName : worlds) {
+            World world = Bukkit.getWorld(worldName);
+            if (world == null) continue;
+            Set<Long> seen = new HashSet<>();
+            List<QueuedChunk> chunks = new ArrayList<>();
+            for (Player player : world.getPlayers()) {
+                Location startLoc = player.getLocation();
+                int xCenter = startLoc.getBlockX() >> 4;
+                int zCenter = startLoc.getBlockZ() >> 4;
+                for (int x = xCenter - radius, xMax = xCenter + radius; x <= xMax; x++) {
+                    for (int z = zCenter - radius, zMax = zCenter + radius; z <= zMax; z++) {
+                        if (!seen.add(((long) x << 32) | (z & 0xFFFFFFFFL))) continue;
+                        if (Rng.chance(chance) && isAllowed(world, x, z)) {
+                            chunks.add(new QueuedChunk(x, z));
                         }
                     }
                 }
-                if (chunks.isEmpty()) continue;
-                Utils.runIteratingTask(plugin, chunks, (queuedChunk) -> {
-                    Chunk chunk = queuedChunk.getChunk(world);
-                    if (chunk == null || !chunk.isLoaded()) {
-                        if (forceLoad) {
-                            world.getChunkAtAsync(queuedChunk.x, queuedChunk.z).thenAccept(this::proceedChunk);
-                        }
-                    } else proceedChunk(chunk);
-                }, schedule);
             }
-        });
+            if (chunks.isEmpty()) continue;
+            Utils.runIteratingTask(plugin, chunks, (queuedChunk) -> {
+                if (world.isChunkLoaded(queuedChunk.x, queuedChunk.z)) {
+                    proceedChunk(world.getChunkAt(queuedChunk.x, queuedChunk.z));
+                } else if (forceLoad) {
+                    world.getChunkAtAsync(queuedChunk.x, queuedChunk.z).thenAccept(this::proceedChunk);
+                }
+            }, schedule);
+        }
     }
 
     private boolean isAllowed(World world, int x, int z) {
@@ -157,24 +162,34 @@ public class CavesAging implements Tickable, Configurable {
     }
 
     private void proceedChunk(Chunk chunk) {
-        Location edge = chunk.getBlock(0, chunk.getWorld().getMinHeight(), 0).getLocation();
+        World world = chunk.getWorld();
+        int chunkX = chunk.getX();
+        int chunkZ = chunk.getZ();
+        int minHeight = world.getMinHeight();
+        // y+1 is read for every block up to the limit
+        int maxY = Math.min(yMax, world.getMaxHeight() - 2);
         ChunkSnapshot snapshot = chunk.getChunkSnapshot(false, false, false);
-        int minHeight = chunk.getWorld().getMinHeight();
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-            if (!Rng.chance(chance)) return;
-            List<DelayedChange> changes = calculateChanges(edge, snapshot, minHeight);
+            // Only the snapshot is read off the main thread; regions are tested on the main thread,
+            // in DelayedChange#perform, for the blocks that really change
+            List<DelayedChange> changes = calculateChanges(snapshot, minHeight, maxY);
             if (changes.isEmpty()) return;
 
-            plugin.getServer().getScheduler().runTask(plugin, () -> changes.forEach(change -> change.perform(chunk)));
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                // The chunk may have unloaded meanwhile: touching it would load it synchronously
+                if (!world.isChunkLoaded(chunkX, chunkZ)) return;
+                Chunk loaded = world.getChunkAt(chunkX, chunkZ);
+                changes.forEach(change -> change.perform(loaded));
+            });
         });
     }
 
-    private List<DelayedChange> calculateChanges(Location edge, ChunkSnapshot snapshot, int minHeight) {
+    private List<DelayedChange> calculateChanges(ChunkSnapshot snapshot, int minHeight, int maxY) {
         List<DelayedChange> changes = new ArrayList<>();
 
         int affectedCount = 0;
         int totalCount = 0;
-        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) for (int y = minHeight + 2; y <= yMax; y++) { // TODO Configurable aging script
+        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) for (int y = minHeight + 2; y <= maxY; y++) { // TODO Configurable aging script
             Material type = snapshot.getBlockType(x, y, z);
             if (type.isAir()) continue;
 
@@ -193,10 +208,6 @@ public class CavesAging implements Tickable, Configurable {
                     snapshot.getBlockEmittedLight(x, y+1, z) >= lightLevel ||
                     snapshot.getBlockEmittedLight(x, y-1, z) >= lightLevel
             )) continue;
-
-            if (!Regions.INSTANCE.isAllowed(ActionType.BLOCK, Locations.add(edge, x, y, z))) {
-                continue;
-            }
 
             if (type == Material.TORCH) {
                 if (torchRemove > 0 && Rng.chance(torchRemove)) {
@@ -273,7 +284,7 @@ public class CavesAging implements Tickable, Configurable {
                     for (BlockFace face : Locations.HORIZONTAL_FACES) {
                         Block relBlock = block.getRelative(face);
                         // Vines spread sideways, so they can reach into a neighbouring chunk/claim
-                        if (relBlock.getType().isAir()
+                        if (isLoaded(relBlock) && relBlock.getType().isAir()
                                 && Regions.INSTANCE.isAllowed(ActionType.BLOCK, relBlock.getLocation())) {
                             relBlock.setType(Material.VINE, false);
                             Materials.rotate(relBlock, face.getOppositeFace());
@@ -316,13 +327,13 @@ public class CavesAging implements Tickable, Configurable {
         }
     }
     
+    private static boolean isLoaded(Block block) {
+        return block.getWorld().isChunkLoaded(block.getX() >> 4, block.getZ() >> 4);
+    }
+
     private enum ChangeType {
         VINE, RED_MUSHROOM, BROWN_MUSHROOM, ROCK, STALAGMITE, COBBLESTONE, ANDESITE, TORCH_AIR
     }
 
-    private record QueuedChunk(int x, int z) {
-        public Chunk getChunk(World world) {
-            return world.isChunkLoaded(x, z) ? world.getChunkAt(x, z) : null;
-        }
-    }
+    private record QueuedChunk(int x, int z) {}
 }

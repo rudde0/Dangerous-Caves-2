@@ -8,7 +8,6 @@ import me.imdanix.caves.ticks.TickLevel;
 import me.imdanix.caves.util.TagHelper;
 import me.imdanix.caves.util.Utils;
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -17,7 +16,6 @@ import org.bukkit.command.BlockCommandSender;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -33,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 // TODO: Refactor, split to different classes
 public class Commander implements CommandExecutor, TabCompleter {
@@ -44,8 +43,10 @@ public class Commander implements CommandExecutor, TabCompleter {
     private final Dynamics dynamics;
 
     private final String[] version;
+    private final Logger logger;
 
     public Commander(DangerousCaves plugin) {
+        this.logger = plugin.getLogger();
         this.mobsManager = plugin.getMobs();
         this.cfg = plugin.getConfiguration();
         this.dynamics = plugin.getDynamics();
@@ -73,6 +74,9 @@ public class Commander implements CommandExecutor, TabCompleter {
                 String type = args[1].toLowerCase(Locale.ROOT);
                 if (mobsManager.spawn(type, loc) != null) {
                     sender.sendMessage(Utils.clr("&aMob &e" + type + "&a was successfully summoned."));
+                } else if (mobsManager.getMob(type) != null) {
+                    // e.g. Ore Mole without ProMobEngine or its model
+                    sender.sendMessage(Utils.clr("&cMob &e" + type + "&c refused to spawn here (missing model?)."));
                 } else {
                     sender.sendMessage(Utils.clr("&cThere's no mob's type called &e" + type + "&c!"));
                     sender.sendMessage(Utils.clr("&7List of all mob's types: &f" + String.join(", ", mobsManager.getMobs())));
@@ -86,7 +90,8 @@ public class Commander implements CommandExecutor, TabCompleter {
                     sender.sendMessage(Utils.clr("&aSuccessfully killed all DC mobs."));
                 } else {
                     String type = args[1].toLowerCase(Locale.ROOT);
-                    if (mobsManager.getMob(type) == null) {
+                    // Was inverted: a known type answered "no such type", an unknown one "killed"
+                    if (mobsManager.getMob(type) != null) {
                         killAll(entity -> {if (TagHelper.isTagged(entity, type)) entity.remove();});
                         sender.sendMessage(Utils.clr("&aSuccessfully killed all DC mobs of type &e" + type + "&a."));
                     } else {
@@ -99,28 +104,26 @@ public class Commander implements CommandExecutor, TabCompleter {
             // TODO v Temporary command - need to finish mimics...
             case "mimeremove" -> { // /dcaves mimeremove 3 me
                 if (!sender.hasPermission("dangerouscaves.command.kill")) return false;
-                boolean checkAll = args.length < 3 || !args[2].equalsIgnoreCase("all") || sender instanceof ConsoleCommandSender;
+                // Around the sender only, unless "all" is given or there is no player to center on
+                boolean checkAll = !(sender instanceof Player) || (args.length >= 3 && args[2].equalsIgnoreCase("all"));
                 int radius = args.length < 2 ? 1 : (int) Utils.getDouble(args[1], 1);
 
                 Collection<? extends Player> players = checkAll ? Bukkit.getOnlinePlayers() : Collections.singleton((Player) sender);
-                Set<Integer> checked = new HashSet<>(); // Better to use fastutils, but unavailable in Spigot
+                // The old key (chunkZ * (chunkX >> 16) * uid) was 0 for nearly every chunk, and every chunk's
+                // tile entities were scanned 256 times over
+                Set<String> checked = new HashSet<>();
                 List<BlockState> toRemove = new ArrayList<>();
                 for (Player player : players) {
                     World world = player.getWorld();
-                    final int centerX = (int) player.getLocation().getX() / 16;
-                    final int centerZ = (int) player.getLocation().getZ() / 16;
+                    final int centerX = player.getLocation().getBlockX() >> 4;
+                    final int centerZ = player.getLocation().getBlockZ() >> 4;
                     for (int chunkX = centerX - radius; chunkX <= centerX + radius; ++chunkX) for (int chunkZ = centerZ - radius; chunkZ <= centerZ + radius; ++chunkZ) {
-                        int hash = chunkZ * (chunkX >> 16) * world.getUID().hashCode();
-                        if (!world.isChunkLoaded(chunkX, chunkZ) || checked.contains(hash)) continue;
-                        Chunk chunk = world.getChunkAt(chunkX, chunkZ);
-                        for (int x = 0; x < 16; ++x) for (int z = 0; z < 16; ++z) {
-                            for (BlockState state : chunk.getTileEntities()) {
-                                if (state.getType() != Material.CHEST) continue;
-                                String tag = TagHelper.getTag(state);
-                                if (tag != null && tag.startsWith("mimic")) toRemove.add(state);
-                            }
+                        if (!world.isChunkLoaded(chunkX, chunkZ) || !checked.add(world.getName() + ':' + chunkX + ',' + chunkZ)) continue;
+                        for (BlockState state : world.getChunkAt(chunkX, chunkZ).getTileEntities(false)) {
+                            if (state.getType() != Material.CHEST) continue;
+                            String tag = TagHelper.getTag(state);
+                            if (tag != null && tag.startsWith("mimic")) toRemove.add(state);
                         }
-                        checked.add(hash);
                     }
                 }
                 sender.sendMessage(Utils.clr("&eRemoving " + toRemove.size() + " mimic chests..."));
@@ -139,6 +142,7 @@ public class Commander implements CommandExecutor, TabCompleter {
                 cfg.reloadYml();
                 sender.sendMessage(Utils.clr("&aPlugin was successfully reloaded."));
                 cfg.checkVersion(true);
+                Utils.warnUnknownWorlds(logger);
             }
             default -> help(sender, label);
         }

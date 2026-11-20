@@ -70,7 +70,7 @@ public class CaveIns implements Listener, Configurable {
         blastEffect = cfg.getBoolean("blast-effect", true);
         blastSound = cfg.getBoolean("blast-sound", true);
 
-        Utils.fillWorlds(cfg.getStringList("worlds"), worlds);
+        Utils.fillWorlds("caverns.ins.worlds", cfg.getStringList("worlds"), worlds);
 
         noise = cuboid ? PseudoRandom.ZERO_PSEUDO_RANDOM : PSEUDO_RANDOM;
         distance = radius*2 + 1;
@@ -79,7 +79,8 @@ public class CaveIns implements Listener, Configurable {
         disabled = !cfg.getBoolean("enabled", true);
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    // ignoreCancelled: a break that another plugin (or a protection) cancelled must not cave in
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         if (disabled) return;
 
@@ -110,7 +111,9 @@ public class CaveIns implements Listener, Configurable {
                 Block search = blocks.get(0).getRelative(BlockFace.DOWN);
 
                 if (!search.isPassable()) continue;
-                while (search.getY() > 0 && search.isPassable() && !(search = search.getRelative(BlockFace.DOWN)).getType().isSolid());
+                // Down to the world floor (-64 since 1.18), not to y=0
+                int floor = world.getMinHeight();
+                while (search.getY() > floor && search.isPassable() && !(search = search.getRelative(BlockFace.DOWN)).getType().isSolid());
 
                 for (Block block : blocks) {
                     search = search.getRelative(BlockFace.UP);

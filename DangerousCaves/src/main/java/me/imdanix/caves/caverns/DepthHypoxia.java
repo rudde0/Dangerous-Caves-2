@@ -27,6 +27,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +72,7 @@ public class DepthHypoxia implements Tickable, Configurable {
         actionbar = cfg.getBoolean("actionbar", true);
         messages.clear();
         messages.addAll(Utils.clr(cfg.getStringList("messages")));
-        Utils.fillWorlds(cfg.getStringList("worlds"), worlds);
+        Utils.fillWorlds("caverns.hypoxia.worlds", cfg.getStringList("worlds"), worlds);
         formula = new FormulaEvaluator(cfg.getString("chance-formula", "depth*inventory"), MathDictionary.INSTANCE);
 
         condition = placeholder.isEnabled() ? this::checkConditionsPH : this::checkConditions;
@@ -102,7 +103,7 @@ public class DepthHypoxia implements Tickable, Configurable {
 
     private boolean checkConditions(Player player) {
         Location loc = player.getLocation();
-        return Locations.isCave(loc) && loc.getY() <= yMax &&
+        return loc.getY() <= yMax && Locations.isCave(loc) &&
                 Rng.chance(chance) && Rng.chance(getChance(player)) &&
                 Regions.INSTANCE.isAllowed(ActionType.EFFECT, loc);
     }
@@ -165,7 +166,8 @@ public class DepthHypoxia implements Tickable, Configurable {
         private Listener joinListener;
 
         public HypoxiaChancePlaceholder() {
-            chances = new WeakHashMap<>();
+            // PlaceholderAPI may ask from async threads (scoreboards); a bare WeakHashMap mutates on get
+            chances = Collections.synchronizedMap(new WeakHashMap<>());
         }
 
         @Override

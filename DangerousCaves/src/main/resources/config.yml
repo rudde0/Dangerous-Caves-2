@@ -295,9 +295,9 @@ mobs:
     priority: 10
     name: "&4Dead Miner"
     health: 22
-    # Get your custom head here https://minecraft-heads.com/
-    # Just copy a "Value" (with =)
-    head-url: "31937bcd5beaaa34244913f277505e29d2e6fb35f2e23ca4afa2b6768e398d73"
+    # Texture hash or full textures.minecraft.net URL (https://minecraft-heads.com/)
+    # A base64 "Value" (with =) works too as `head-value`; `head-url` wins when both are set
+    head-url: "31937bcd5beeaa34244913f277505e29d2e6fb35f2e23ca4afa2b6768e398d73"
     # Place torches when it's too dark?
     place-torches: true
     # Place redstone torches instead of normal?
@@ -315,16 +315,39 @@ mobs:
       - COAL
       - TORCH
 
-  # Hexed Armor
-  # When attacks gives player all its armor
-  hexed-armor:
-    priority: 6
-    name: "&4Hexed Armor"
-    health: 20
-    # Add binding curse to armor
-    binding-curse: true
-    # When player is attacked
-    apply-chance: 25
+  # Ore Mole (Cevher Köstebeği)
+  # A small burrowing husk wearing the ProMobEngine model `ore_mole`
+  # It is never spawned without ProMobEngine and the model, so it never shows up as a bare husk
+  # Skill "Toprak Altı Pususu": when its target is 6-16 blocks away it dives into the floor, comes up
+  # one block short of the target, warns for a second (cracking floor, rumble) and bursts out,
+  # hurting and knocking up players standing on the spot
+  ore-mole:
+    priority: 3
+    name: "&9Cevher Köstebeği"
+    health: 30
+    # Melee damage (attribute base value)
+    attack-damage: 5
+    # ProMobEngine model id
+    model: ore_mole
+    # Damage multiplier when a player hits it with a pickaxe
+    pickaxe-modifier: 1.5
+    # Seconds between two ambushes of the same mole, random in this range ("12-16" or a single number)
+    burrow-cooldown: "12-16"
+    # Damage of the burst, without a source entity (armor applies)
+    burrow-damage: 6
+    # Experience dropped on death (only when vanilla would drop any: a player hit it recently)
+    exp: 10
+    # Replace the husk's drops. Format: "MATERIAL MIN-MAX CHANCE" (amount and chance in percent are optional)
+    # Natural spawns can be farmed, so keep these modest. Dropped only when a player killed it
+    drops:
+      - "COAL 2-6 60"
+      - "RAW_COPPER 2-5 50"
+      - "RAW_IRON 1-3 45"
+      - "RAW_GOLD 1-2 25"
+      - "LAPIS_LAZULI 2-5 30"
+      - "REDSTONE 2-5 30"
+      - "EMERALD 1 5"
+      - "DIAMOND 1 4"
 
   # Hungering Darkness
   # Spawns in the dark and kills player if there's no light
@@ -399,21 +422,21 @@ mobs:
     # When TNT Creeper is damaged
     explosion-chance: 33.33
 
-  # Watcher
-  # Just jumpscares a player
+  # Watcher (Mağara Gözü)
+  # A melee mob: a hovering eye (ProMobEngine model `cave_eye`) that lashes out with its tentacles
+  # Without ProMobEngine or the model (and for Bedrock players) it is an invisible husk wearing the eye head
   watcher:
     priority: 3
-    name: "&4Watcher"
-    health: 15
-    # You can get your custom head here https://minecraft-heads.com/
-    # Just copy a "Value" (with =)
+    name: "&9Mağara Gözü"
+    health: 20
+    # Melee damage (attribute base value)
+    attack-damage: 4
+    # ProMobEngine model id
+    model: cave_eye
+    # Head of the fallback look: texture hash or full textures.minecraft.net URL (https://minecraft-heads.com/)
     head-url: "d2938f241d74433f72f5c39cb83a8e5ff7e177ba7cb42869db64e3079102bfc5"
     # Don't spawn a new watcher if another one is within this radius (in blocks). Set to 0 to disable
     nearby-limit-radius: 48
-    # Minimal delay between jumpscares of the same watcher. In seconds
-    scare-cooldown: 2
-    # Watcher only jumpscares its target within this distance (in blocks)
-    max-scare-distance: 24
 
   # Mimic
   # Becomes a chest when it has no target

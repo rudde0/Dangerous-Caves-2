@@ -58,7 +58,7 @@ public class AmbientSounds implements Tickable, Configurable {
         if (sounds.isEmpty()) chance = 0;
         worldSound = cfg.getBoolean("server-wise", true);
         worldDistance = cfg.getDouble("server-wise-distance", 0); worldDistance *= worldDistance;
-        Utils.fillWorlds(cfg.getStringList("worlds"), worlds);
+        Utils.fillWorlds("caverns.ambient.worlds", cfg.getStringList("worlds"), worlds);
 
         disabled = !cfg.getBoolean("enabled", true);
     }
@@ -71,7 +71,8 @@ public class AmbientSounds implements Tickable, Configurable {
             if (!worlds.contains(world.getName())) continue;
             for (Player player : world.getPlayers()) {
                 Location loc = player.getLocation();
-                if (loc.getBlockY() > yMax || !Locations.isCave(loc) || !Rng.chance(chance) ||
+                // Cheap checks first: the chance is rolled before the block lookups
+                if (loc.getBlockY() > yMax || !Rng.chance(chance) || !Locations.isCave(loc) ||
                         !Regions.INSTANCE.isAllowed(ActionType.EFFECT, loc)) continue;
                 if (worldSound && soundSources != null) {
                     boolean check = false;

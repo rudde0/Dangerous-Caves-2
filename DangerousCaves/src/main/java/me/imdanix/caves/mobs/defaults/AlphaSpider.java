@@ -7,6 +7,7 @@ import me.imdanix.caves.util.Locations;
 import me.imdanix.caves.util.random.Rng;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -48,8 +49,7 @@ public class AlphaSpider extends MobBase implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onAttack(EntityDamageByEntityEvent event) {
-        if (!isThis(event.getDamager())) return;
-        LivingEntity entity = (LivingEntity) event.getEntity();
+        if (!isThis(event.getDamager()) || !(event.getEntity() instanceof LivingEntity entity)) return;
         Entity damager = event.getDamager();
         if (Rng.nextBoolean()) {
             if (minionChance > 0 && Rng.chance(minionChance))
@@ -57,16 +57,23 @@ public class AlphaSpider extends MobBase implements Listener {
 
             if (cobwebChance > 0) {
                 Location loc = event.getEntity().getLocation();
-                loc.getBlock().setType(Material.COBWEB);
-                entity.getEyeLocation().getBlock().setType(Material.COBWEB);
+                // Only into air, and only where entity griefing is allowed: the feet block can be a slab,
+                // a carpet or water, and these two used to be replaced unconditionally
+                webIfAir(loc.getBlock());
+                webIfAir(entity.getEyeLocation().getBlock());
 
-                Locations.loop(3, loc, l -> {
-                    if (l.getBlock().getType().isAir() && Rng.chance(cobwebChance) &&
-                            Regions.INSTANCE.isAllowed(ActionType.ENTITY, l)) {
-                        l.getBlock().setType(Material.COBWEB);
-                    }}
-                );
+                // Roll first: the block lookup and region query only run for the ~chance share of 343 blocks
+                Locations.loop(3, loc, (world, x, y, z) -> {
+                    if (!Rng.chance(cobwebChance)) return;
+                    webIfAir(world.getBlockAt(x, y, z));
+                });
             }
         } else entity.addPotionEffect(POISON);
+    }
+
+    private static void webIfAir(Block block) {
+        if (block.getType().isAir() && Regions.INSTANCE.isAllowed(ActionType.ENTITY, block.getLocation())) {
+            block.setType(Material.COBWEB);
+        }
     }
 }

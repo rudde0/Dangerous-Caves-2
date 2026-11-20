@@ -52,15 +52,11 @@ public class HungeringDarkness extends MobBase implements Listener {
         entity.addPotionEffect(SLOW);
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onTarget(EntityTargetEvent event) {
         Entity target = event.getTarget();
-        if (!isThis(event.getEntity()) || target == null) return;
-        if (target.getLocation().getBlock().getLightLevel() > 0 && (
-                !vision ||
-                !(target instanceof LivingEntity) ||
-                ((LivingEntity)target).hasPotionEffect(PotionEffectType.NIGHT_VISION)
-            )) {
+        if (target == null || !isThis(event.getEntity())) return;
+        if (isLit(target)) {
             event.setCancelled(true);
             die(event.getEntity());
         }
@@ -70,13 +66,19 @@ public class HungeringDarkness extends MobBase implements Listener {
     public void onAttack(PlayerAttackedEvent event) {
         if (!isThis(event.getAttacker())) return;
         Player player = event.getPlayer();
-        if (player.getLocation().getBlock().getLightLevel() > 0 && (
-                !vision ||
-                player.hasPotionEffect(PotionEffectType.NIGHT_VISION)
-            )) {
+        if (isLit(player)) {
             event.setCancelled(true);
             die(event.getAttacker());
         } else event.setDamage(damage);
+    }
+
+    /**
+     * Light kills it; with `night-vision` on, a target with Night Vision counts as lit too.
+     * (The old check required Night Vision on top of light when the option was on.)
+     */
+    private boolean isLit(Entity target) {
+        return target.getLocation().getBlock().getLightLevel() > 0 || (vision
+                && target instanceof LivingEntity living && living.hasPotionEffect(PotionEffectType.NIGHT_VISION));
     }
 
     private void die(Entity entity) {

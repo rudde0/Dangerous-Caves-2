@@ -84,7 +84,8 @@ public class MagmaMonster extends MobBase implements CustomMob.Ticking, Listener
 
     @Override
     public void tick(LivingEntity entity) {
-        if (extinguishDamage && entity.getFireTicks() > 0) {
+        // "If monster is extinguished it will receive damage": the check was inverted (it hurt while burning)
+        if (extinguishDamage && entity.getFireTicks() <= 0) {
             entity.damage(0.1);
         } else {
             entity.setFireTicks(20);

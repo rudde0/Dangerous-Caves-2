@@ -42,10 +42,11 @@ public class LavaCreeper extends MobBase implements CustomMob.Ticking, Listener 
     @Override
     protected void configure(ConfigurationSection cfg) {
         chance = cfg.getDouble("change-chance", 50) / 100;
-        fire = cfg.getDouble("blocks.fire", 33.33) / 100;
-        magmaBlock = cfg.getDouble("blocks.magma_block", 25) / 100;
-        obsidian = cfg.getDouble("blocks.obsidian", 20) / 100;
-        lava = cfg.getDouble("blocks.lava", 16.67) / 100;
+        // The config documents `block-chances`, the code used to read `blocks` only (so configured values were ignored)
+        fire = blockChance(cfg, "fire", 33.33);
+        magmaBlock = blockChance(cfg, "magma_block", 25);
+        obsidian = blockChance(cfg, "obsidian", 20);
+        lava = blockChance(cfg, "lava", 16.67);
         fireTouch = cfg.getInt("fire-touch", 10);
         radius = cfg.getInt("radius", 4);
         radiusSquared = radius * radius;
@@ -56,7 +57,11 @@ public class LavaCreeper extends MobBase implements CustomMob.Ticking, Listener 
         entity.addPotionEffect(FIRE_RESISTANCE);
     }
 
-    @EventHandler
+    private static double blockChance(ConfigurationSection cfg, String block, double def) {
+        return cfg.getDouble("block-chances." + block, cfg.getDouble("blocks." + block, def)) / 100;
+    }
+
+    @EventHandler(ignoreCancelled = true)
     public void onAttack(EntityDamageByEntityEvent event) {
         if (fireTouch <= 0 || !isThis(event.getEntity())) return;
         event.getDamager().setFireTicks(fireTouch);
@@ -75,7 +80,8 @@ public class LavaCreeper extends MobBase implements CustomMob.Ticking, Listener 
             if ((square(cx - x) + square(cy - y) + square(cz - z)) > radiusSquared || !Rng.chance(chance)) return;
             Block block = new Location(world, x, y, z).getBlock();
             if (block.getType().isAir()) {
-                if (fire > 0 && !block.getRelative(BlockFace.DOWN).getType().isAir() && Rng.chance(fire)) block.setType(Material.FIRE);
+                if (fire > 0 && !block.getRelative(BlockFace.DOWN).getType().isAir() && Rng.chance(fire)
+                        && Regions.INSTANCE.isAllowed(ActionType.ENTITY, block.getLocation())) block.setType(Material.FIRE);
             } else if (block.getType() != Material.BEDROCK && Regions.INSTANCE.isAllowed(ActionType.ENTITY, block.getLocation())) {
                 if (magmaBlock > 0 && Rng.chance(magmaBlock)) {
                     block.setType(Material.MAGMA_BLOCK);

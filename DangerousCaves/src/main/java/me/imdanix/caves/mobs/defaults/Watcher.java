@@ -2,68 +2,97 @@ package me.imdanix.caves.mobs.defaults;
 
 import me.imdanix.caves.mobs.CustomMob;
 import me.imdanix.caves.mobs.MobBase;
+import me.imdanix.caves.mobs.MobsManager;
 import me.imdanix.caves.util.Locations;
 import me.imdanix.caves.util.Materials;
+import me.imdanix.caves.util.PmeBridge;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
-import org.bukkit.block.Block;
+import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Ageable;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Monster;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.Zombie;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityTransformEvent;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.util.Vector;
 
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
-import java.util.WeakHashMap;
 
+/**
+ * Mağara Gözü (config key {@code watcher}): a melee husk wearing the ProMobEngine model {@code cave_eye}, a hovering
+ * eye whose tentacle lash is the model's ATTACK clip (the engine starts it from the husk's own arm swing).
+ * <p>
+ * The base always keeps the old watcher look, an invisible husk wearing the eye head: the engine hides body and
+ * equipment from the players it draws the model for, and the rest (Bedrock, clients below 1.20.2, or everybody
+ * when the engine or the model is missing) see the floating head.
+ */
 public class Watcher extends MobBase implements CustomMob.Ticking, Listener {
     private static final PotionEffect INVISIBILITY = new PotionEffect(PotionEffectType.INVISIBILITY, PotionEffect.INFINITE_DURATION, 0, false, false);
-    private static final PotionEffect SLOW = new PotionEffect(PotionEffectType.SLOWNESS, 30, 4);
-    private static final PotionEffect BLINDNESS = new PotionEffect(PotionEffectType.BLINDNESS, 80, 2);
-    private static final Vector ZERO_VECTOR = new Vector(0, 0, 0);
-    // Distances in front of the player to try, closest last so the scare still happens in tight tunnels
-    private static final double[] TELEPORT_DISTANCES = {1.5, 1.2};
+    private static final String DEFAULT_HEAD = "d2938f241d74433f72f5c39cb83a8e5ff7e177ba7cb42869db64e3079102bfc5";
+    // A watcher whose ENTITY tick has not run for this long is gone (dead or unloaded)
+    private static final int STALE_TICKS = 100;
 
-    // Last jumpscare time per watcher; weak keys so removed entities don't leak
-    private final Map<UUID, Long> lastScare = new WeakHashMap<>();
+    private final Plugin plugin;
+    // "One per area": last known place of every live watcher, refreshed by its ENTITY tick and pruned lazily.
+    // Replaces a 96-block cube entity scan on every spawn attempt
+    private final Map<UUID, Spot> spots = new HashMap<>();
+    private final Location scratch = new Location(null, 0, 0, 0);
 
     private ItemStack head;
-    private long scareCooldown;
     private double nearbyRadius;
-    private double maxScareDistance;
+    private double attackDamage;
+    private String model;
 
-    public Watcher() {
-        super(EntityType.HUSK, "watcher", 3, 15d);
+    public Watcher(MobsManager mobs) {
+        super(EntityType.HUSK, "watcher", 3, 20d, "&9Mağara Gözü");
+        this.plugin = mobs.getPlugin();
     }
 
     @Override
     protected void configure(ConfigurationSection cfg) {
-        head = Materials.getHeadFromURL(cfg.getString("head-url", "d2938f241d74433f72f5c39cb83a8e5ff7e177ba7cb42869db64e3079102bfc5"));
-        scareCooldown = Math.max(0, Math.round(cfg.getDouble("scare-cooldown", 2) * 1000));
+        head = Materials.getHeadFromURL(cfg.getString("head-url", DEFAULT_HEAD));
         nearbyRadius = Math.max(0, cfg.getDouble("nearby-limit-radius", 48));
-        maxScareDistance = Math.max(2, cfg.getDouble("max-scare-distance", 24));
+        attackDamage = Math.max(0, cfg.getDouble("attack-damage", 4));
+        model = cfg.getString("model", "cave_eye");
+        // scare-cooldown and max-scare-distance belonged to the removed jumpscare and are ignored
+    }
+
+    @Override
+    protected boolean randomizeData() {
+        // No baby husks, chicken jockeys or random gear: the look is fixed
+        return false;
     }
 
     @Override
     public boolean canSpawn(Location loc) {
         if (nearbyRadius <= 0) return true;
-        // One watcher per area is creepy, a crowd of them is just annoying
-        for (Entity entity : loc.getWorld().getNearbyEntities(loc, nearbyRadius, nearbyRadius, nearbyRadius,
-                e -> e.getType() == EntityType.HUSK)) {
-            if (isThis(entity)) return false;
+        double radiusSquared = nearbyRadius * nearbyRadius;
+        World world = loc.getWorld();
+        int now = Bukkit.getCurrentTick();
+        Iterator<Spot> iterator = spots.values().iterator();
+        while (iterator.hasNext()) {
+            Spot spot = iterator.next();
+            if (now - spot.tick > STALE_TICKS) {
+                iterator.remove();
+            } else if (spot.world == world && spot.distanceSquared(loc) <= radiusSquared) {
+                return false;
+            }
         }
         return true;
     }
@@ -73,50 +102,59 @@ public class Watcher extends MobBase implements CustomMob.Ticking, Listener {
         entity.setSilent(true);
         entity.setCanPickupItems(false);
         entity.addPotionEffect(INVISIBILITY);
-        // Baby husks and chicken jockeys make the only visible part (the head) tiny or hidden
         if (entity instanceof Ageable ageable) ageable.setAdult();
-        if (entity.isInsideVehicle()) entity.leaveVehicle();
 
         EntityEquipment equipment = entity.getEquipment();
-        equipment.setHelmet(head.clone());  equipment.setHelmetDropChance(0);
-        equipment.setChestplate(null);
-        equipment.setLeggings(null);
-        equipment.setBoots(null);
-        equipment.setItemInMainHand(null);
-        equipment.setItemInOffHand(null);
+        equipment.clear();
+        equipment.setHelmet(head.clone());
+        equipment.setHelmetDropChance(0);
+        setBaseAttribute(entity, Attribute.ATTACK_DAMAGE, attackDamage);
+
+        if (PmeBridge.isAvailable()) PmeBridge.attach(entity, model);
+        remember(entity);
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onAttack(EntityDamageByEntityEvent event) {
-        if (isThis(event.getEntity()))
-            Locations.playSound(event.getEntity().getLocation(), Sound.ENTITY_SLIME_SQUISH, 1, 1.1f);
+    @Override
+    public void onLoad(LivingEntity entity) {
+        remember(entity);
+        if (!PmeBridge.isAvailable()) return;
+        // The engine puts a model back from its own data a tick after the load. A watcher spawned while the
+        // engine or the model was missing has none: give it one now that it is there
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (entity.isValid() && !PmeBridge.has(entity) && PmeBridge.hasModel(model)) PmeBridge.attach(entity, model);
+        }, 2L);
     }
 
     @Override
     public void tick(LivingEntity entity) {
-        ensureVisibleHead(entity);
-        if (!(((Monster) entity).getTarget() instanceof Player target)) return;
-        if (target.getWorld() != entity.getWorld() ||
-                target.getLocation().distanceSquared(entity.getLocation()) > maxScareDistance * maxScareDistance) return;
-        if (Locations.isLookingAt(target, entity) && target.hasLineOfSight(entity)) return;
+        remember(entity);
+        // Restore the fallback look now and then (getHelmet copies the item, so not every ENTITY tick)
+        if (entity.getTicksLived() % 20 < 4) ensureVisibleHead(entity);
+    }
 
-        long now = System.currentTimeMillis();
-        Long last = lastScare.get(entity.getUniqueId());
-        if (last != null && now - last < scareCooldown) return;
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onAttack(EntityDamageByEntityEvent event) {
+        Entity entity = event.getEntity();
+        // A modelled watcher has the model's hurt sound; the squish is the fallback's voice
+        if (isThis(entity) && !PmeBridge.has(entity))
+            Locations.playSound(entity.getLocation(), Sound.ENTITY_SLIME_SQUISH, 1, 1.1f);
+    }
 
-        Location loc = findScareLocation(target);
-        if (loc == null) return;
-        if (!entity.teleport(loc)) return;
-        lastScare.put(entity.getUniqueId(), now);
+    @EventHandler(ignoreCancelled = true)
+    public void onTransform(EntityTransformEvent event) {
+        // A husk under water turns into a zombie, which would lose the model and the tags
+        if (!isThis(event.getEntity())) return;
+        event.setCancelled(true);
+        if (event.getEntity() instanceof Zombie zombie) zombie.setConversionTime(-1);
+    }
 
-        target.setVelocity(ZERO_VECTOR);
-        target.addPotionEffect(SLOW);
-        target.addPotionEffect(BLINDNESS);
-        Locations.playSound(target.getEyeLocation(), Sound.ENTITY_GHAST_HURT, 1, 2);
+    private void remember(LivingEntity entity) {
+        entity.getLocation(scratch);
+        spots.computeIfAbsent(entity.getUniqueId(), id -> new Spot()).update(scratch, Bukkit.getCurrentTick());
     }
 
     /**
-     * Head is the only visible part of the watcher, so restore it if something took it away
+     * Head is the only visible part of the fallback watcher, so restore it if something took it away
      */
     private void ensureVisibleHead(LivingEntity entity) {
         EntityEquipment equipment = entity.getEquipment();
@@ -129,36 +167,26 @@ public class Watcher extends MobBase implements CustomMob.Ticking, Listener {
         if (entity instanceof Ageable ageable && !ageable.isAdult()) ageable.setAdult();
     }
 
-    /**
-     * Find a free spot right in front of the player, facing them.
-     * Old logic used raw look direction, so the watcher often ended up inside walls/floor
-     * (or behind the camera when looking up/down) and became fully invisible.
-     */
-    private static Location findScareLocation(Player target) {
-        Location base = target.getLocation();
-        Vector forward = base.getDirection().setY(0);
-        if (forward.lengthSquared() < 1.0E-4) {
-            // Looking straight up/down - fall back to body yaw
-            double yaw = Math.toRadians(base.getYaw());
-            forward = new Vector(-Math.sin(yaw), 0, Math.cos(yaw));
-        }
-        forward.normalize();
+    private static final class Spot {
+        private World world;
+        private double x;
+        private double y;
+        private double z;
+        private int tick;
 
-        for (double distance : TELEPORT_DISTANCES) {
-            Location loc = base.clone().add(forward.clone().multiply(distance));
-            if (!isFree(loc)) continue;
-            Location eyeLevel = loc.clone().add(0, 1.6, 0);
-            if (!target.hasLineOfSight(eyeLevel)) continue;
-            loc.setDirection(base.toVector().subtract(loc.toVector()));
-            loc.setPitch(0);
-            return loc;
+        private void update(Location loc, int tick) {
+            this.world = loc.getWorld();
+            this.x = loc.getX();
+            this.y = loc.getY();
+            this.z = loc.getZ();
+            this.tick = tick;
         }
-        return null;
-    }
 
-    private static boolean isFree(Location loc) {
-        Block feet = loc.getBlock();
-        Block head = feet.getRelative(0, 1, 0);
-        return feet.isPassable() && head.isPassable() && !feet.isLiquid() && !head.isLiquid();
+        private double distanceSquared(Location loc) {
+            double dx = x - loc.getX();
+            double dy = y - loc.getY();
+            double dz = z - loc.getZ();
+            return dx * dx + dy * dy + dz * dz;
+        }
     }
 }

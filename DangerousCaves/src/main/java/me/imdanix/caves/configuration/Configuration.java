@@ -7,8 +7,8 @@ import org.bukkit.plugin.Plugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.TreeSet;
 
 public class Configuration implements Manager<Configurable> {
     private final Plugin plugin;
@@ -21,13 +21,10 @@ public class Configuration implements Manager<Configurable> {
     public Configuration(Plugin plugin, String name, String version) {
         this.plugin = plugin;
         this.name = name;
-        configurables = new TreeSet<>((incoming, checked) -> {
-            if (incoming == checked) return 0;
-            Configurable.Before before = incoming.getClass().getAnnotation(Configurable.Before.class);
-            return before != null && before.value().equals(checked.getConfigPath())
-                    ? -1
-                    : Integer.compare(incoming.hashCode(), checked.hashCode());
-        });
+        // Insertion order; reloadYml() puts the @Before ones first. The old TreeSet ordered by hashCode
+        // with an inconsistent comparator, so mobs could reload after the manager that reads their
+        // priorities (a priority change then needed a second reload) and a hash tie dropped an object
+        configurables = new LinkedHashSet<>();
         file = new File(plugin.getDataFolder(), name + ".yml");
         this.version = version;
     }
@@ -71,7 +68,13 @@ public class Configuration implements Manager<Configurable> {
      */
     public void reloadYml() {
         yml = YamlConfiguration.loadConfiguration(file);
-        configurables.forEach(this::reload);
+        // Objects marked @Before reload ahead of the rest (mobs before "mobs", which reads their priorities)
+        for (Configurable conf : configurables) {
+            if (conf.getClass().isAnnotationPresent(Configurable.Before.class)) reload(conf);
+        }
+        for (Configurable conf : configurables) {
+            if (!conf.getClass().isAnnotationPresent(Configurable.Before.class)) reload(conf);
+        }
     }
 
     /**
