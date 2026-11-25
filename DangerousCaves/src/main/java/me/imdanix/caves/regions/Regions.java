@@ -76,7 +76,10 @@ public enum Regions implements Manager<RegionProtector>, Configurable {
     // v TODO: There's no purpose to leave it there - move to main class
 
     public void onLoad() {
-        if (Bukkit.getPluginManager().isPluginEnabled("WorldGuard")) {
+        // Our onLoad runs before any plugin is enabled, so isPluginEnabled is always false here and the
+        // worldguard modes were never registered. Being loaded is enough: softdepend makes WorldGuard
+        // run its own onLoad first, and flags can only be registered during the load phase.
+        if (Bukkit.getPluginManager().getPlugin("WorldGuard") != null) {
             register(new WorldGuard7FlagsProtector());
             register(new WorldGuard7Protector());
         }
